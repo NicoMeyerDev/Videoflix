@@ -1,3 +1,4 @@
+import queue
 import shutil
 
 from videoflix_app.tasks import convert_480p
@@ -5,6 +6,7 @@ from .models import Video
 from django.dispatch import receiver
 from django.db.models.signals import post_save, post_delete
 import os
+import django_rq
 import shutil
 
 
@@ -15,7 +17,11 @@ def video_post_save(sender, instance, created, **kwargs):
     """
 
     if created:
-        convert_480p(instance.video_file.path)
+        print("Video wurde gespeichert)")
+        queue = django_rq.get_queue('default', autocommit=True)
+        queue.enqueue(convert_480p, instance.video_file.path, instance.id)
+        queue.enqueue(convert_720p, instance.video_file.path, instance.id)
+        queue.enqueue(convert_1080p, instance.video_file.path, instance.id)
 
 @receiver(post_delete, sender=Video)
 

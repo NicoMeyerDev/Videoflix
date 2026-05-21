@@ -3,14 +3,17 @@ from django.db import models
 class Video(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
-    thumbnail_url = models.ImageField(upload_to='thumbnails/', blank=True, null=True)
-    uploaded_at = models.DateTimeField(auto_now_add=True)
-    duration = models.IntegerField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    video_file = models.FileField(upload_to='videos/', blank=True, null=True)
     category = models.CharField(max_length=50, choices=[
         ('action', 'Action'),
         ('comedy', 'Comedy'),
         ('drama', 'Drama'),
-        # Add more categories as needed
+        ('horror', 'Horror'),
+        ('sci-fi', 'Sci-Fi'),
+        ('documentary', 'Documentary'),
+        ('romance', 'Romance'),
+
     ])
 
     def __str__(self):
@@ -26,7 +29,7 @@ class VideoFile(models.Model):
         ('4K', '4K'),
     ])  
     def __str__(self):
-        return f"{self.video.title} - {self.format} - {self.resolution}"    
+        return f"{self.video.title} - {self.resolution}"    
     
 
 

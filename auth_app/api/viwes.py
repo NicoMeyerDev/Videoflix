@@ -42,7 +42,6 @@ class RegistrationView(APIView):
                 recipient_list=[saved_account.email]
 )
             data = {
-                'username': saved_account.username,
                 'email': saved_account.email,
                 'user_id': saved_account.pk
             }

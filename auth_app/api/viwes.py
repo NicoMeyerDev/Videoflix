@@ -1,3 +1,5 @@
+from os import link
+
 from django.contrib.auth import authenticate, get_user_model
 
 from rest_framework import status
@@ -6,19 +8,39 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from quiz_management_app.models import User
+from django.core.mail import send_mail
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
+from django.utils.encoding import force_bytes, force_str
+
+from videoflix_app.models import User
 from .serializers import RegistrationSerializer
 
 
 class RegistrationView(APIView):
+    """Handles user registration, creates a new user,
+    and sends an activation email with a tokenized link."""
     permission_classes = [AllowAny]
 
     def post(self, request):
         serializer = RegistrationSerializer(data=request.data)
+        
+        
 
         data = {}
         if serializer.is_valid():
             saved_account = serializer.save()
+
+            
+            uid = urlsafe_base64_encode(force_bytes(saved_account.pk))
+            token = default_token_generator.make_token(saved_account)
+            link = f"http://localhost:4200/activate/{uid}/{token}/"
+            send_mail(
+                subject='Account aktivieren',
+                message=f'Hier ist dein Aktivierungslink: {link}',
+                from_email='noreply@videoflix.com', #TODO: E-Mail-Adresse anpassen
+                recipient_list=[saved_account.email]
+)
             data = {
                 'username': saved_account.username,
                 'email': saved_account.email,
@@ -27,8 +49,75 @@ class RegistrationView(APIView):
             return Response({"detail": "User created successfully!"}, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+class ActivateAccountView(APIView):
+    """Handles account activation by validating the token
+    from the activation link and activating the user's account."""
+    permission_classes = [AllowAny]
 
-       
+    def get(self, request, uidb64, token):
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+
+        if user is not None and default_token_generator.check_token(user, token):
+            user.is_active = True
+            user.save()
+            return Response({"detail": "Account activated successfully!"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"detail": "Invalid activation link"}, status=status.HTTP_400_BAD_REQUEST)        
+
+class PasswordResetRequestView(APIView):
+    """Handles password reset requests by validating the email,
+    generating a tokenized link, and sending it to the user's email."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        email = request.data.get('email')
+        if not email:
+            return Response({"detail": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"detail": "User with this email does not exist"}, status=status.HTTP_404_NOT_FOUND)
+
+        uid = urlsafe_base64_encode(force_bytes(user.pk))
+        token = default_token_generator.make_token(user)
+        link = f"http://localhost:4200/reset-password-confirm/{uid}/{token}/"
+        send_mail(
+            subject='Passwort zurücksetzen',
+            message=f'Hier ist dein Link zum Zurücksetzen des Passworts: {link}',
+            from_email='noreply@videoflix.com',
+            recipient_list=[user.email]
+        )
+        return Response({"detail": "Password reset link sent to email"}, status=status.HTTP_200_OK)
+
+class PasswordResetConfirmView(APIView):
+    """Handles password reset confirmation by validating the token from the reset link
+    and allowing the user to set a new password."""
+    permission_classes = [AllowAny]
+
+    def post(self, request, uidb64, token):
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            user = None
+
+        if user is not None and default_token_generator.check_token(user, token):
+            new_password = request.data.get('new_password')
+            if not new_password:
+                return Response({"detail": "New password is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+            user.set_password(new_password)
+            user.save()
+            return Response({"detail": "Password reset successfully!"}, status=status.HTTP_200_OK)
+        else:
+            return Response({"detail": "Invalid password reset link"}, status=status.HTTP_400_BAD_REQUEST)
+
 class CookieTokenObtainPairView(TokenObtainPairView):
     """
     Handles the login process, generates access and refresh tokens,

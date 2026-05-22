@@ -17,6 +17,7 @@ class VideoView(viewsets.ReadOnlyModelViewSet):
         return queryset
     
 class VideoHLSView(viewsets.ViewSet):
+    """View to serve HLS playlist and segments for a video."""
     def retrieve(self, request,movie_id, resolution):
         try:
             video_file = VideoFile.objects.get(video=movie_id, resolution=resolution)
@@ -26,6 +27,7 @@ class VideoHLSView(viewsets.ViewSet):
             return Response({'error': 'Video file not found'}, status=404)
 
 class VideoHLSSegmentView(viewsets.ViewSet):
+    """View to serve HLS segments for a video."""
     def retrieve(self, request,movie_id, resolution, segment):
         try:
             video_file = VideoFile.objects.get(video=movie_id, resolution=resolution)

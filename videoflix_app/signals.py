@@ -1,7 +1,7 @@
 import queue
 import shutil
 
-from videoflix_app.tasks import convert_480p
+from videoflix_app.tasks import convert_480p, convert_720p, convert_1080p
 from .models import Video
 from django.dispatch import receiver
 from django.db.models.signals import post_save, post_delete

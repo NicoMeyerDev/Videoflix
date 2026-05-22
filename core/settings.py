@@ -154,7 +154,7 @@ USE_TZ = True
 REST_FRAMEWORK = {
 
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'auth_app.api.authentication.CookieJWTAuthentication',
+        'auth_app.api.authentications.CookieJWTAuthentication',
     )
 }
 

@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Video
+from ..models import Video
 
 class VideoSerializer(serializers.ModelSerializer):
     """Serializer for the Video model, including a method to get the absolute URL of the thumbnail."""

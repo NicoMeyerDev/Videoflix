@@ -1,6 +1,6 @@
 from os import link
 
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.models import User
 
 from rest_framework import status
 from rest_framework.views import APIView
@@ -13,7 +13,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.encoding import force_bytes, force_str
 
-from videoflix_app.models import User
+
 from .serializers import RegistrationSerializer
 
 
@@ -30,6 +30,10 @@ class RegistrationView(APIView):
         data = {}
         if serializer.is_valid():
             saved_account = serializer.save()
+            data = {
+                'email': saved_account.email,
+                'user_id': saved_account.pk
+            }
 
             
             uid = urlsafe_base64_encode(force_bytes(saved_account.pk))
@@ -41,11 +45,7 @@ class RegistrationView(APIView):
                 from_email='noreply@videoflix.com', #TODO: E-Mail-Adresse anpassen
                 recipient_list=[saved_account.email]
 )
-            data = {
-                'email': saved_account.email,
-                'user_id': saved_account.pk
-            }
-            return Response({"detail": "User created successfully!"}, status=status.HTTP_201_CREATED)
+            return Response({"user": {"id": saved_account.pk,"email": saved_account.email}}, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         

@@ -3,7 +3,7 @@ from .views import VideoView, VideoHLSView, VideoHLSSegmentView
 from django.urls import path, include
 
 router = DefaultRouter()
-router.register(r'video', VideoView)
+router.register(r'video', VideoView, basename='video')
 
 urlpatterns = [
     path('', include(router.urls)),

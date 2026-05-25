@@ -1,12 +1,16 @@
 from os import link
 
-from django.contrib.auth import authenticate, get_user_model
+from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
+
 
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.tokens import RefreshToken
+
 
 from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
@@ -32,7 +36,7 @@ class RegistrationView(APIView):
 
             
             uid = urlsafe_base64_encode(force_bytes(saved_account.pk))
-            token = default_token_generator.make_token(saved_account)
+            token = default_token_generator.make_token(saved_account).replace('=', '')
             link = f"http://localhost:4200/activate/{uid}/{token}/"
             send_mail(
                 subject='Account aktivieren',
@@ -44,7 +48,7 @@ class RegistrationView(APIView):
                 'email': saved_account.email,
                 'user_id': saved_account.pk
             }
-            return Response({"detail": "User created successfully!"}, status=status.HTTP_201_CREATED)
+            return Response({"user": {"id": saved_account.pk, "email": saved_account.email}, "token": token}, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
@@ -63,7 +67,7 @@ class ActivateAccountView(APIView):
         if user is not None and default_token_generator.check_token(user, token):
             user.is_active = True
             user.save()
-            return Response({"detail": "Account activated successfully!"}, status=status.HTTP_200_OK)
+            return Response({"message": "Account successfully activated!"}, status=status.HTTP_200_OK)
         else:
             return Response({"detail": "Invalid activation link"}, status=status.HTTP_400_BAD_REQUEST)        
 
@@ -83,7 +87,7 @@ class PasswordResetRequestView(APIView):
             return Response({"detail": "User with this email does not exist"}, status=status.HTTP_404_NOT_FOUND)
 
         uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = default_token_generator.make_token(user)
+        token = default_token_generator.make_token(user).replace('=', '')
         link = f"http://localhost:4200/reset-password-confirm/{uid}/{token}/"
         send_mail(
             subject='Passwort zurücksetzen',
@@ -91,7 +95,7 @@ class PasswordResetRequestView(APIView):
             from_email='noreply@videoflix.com',
             recipient_list=[user.email]
         )
-        return Response({"detail": "Password reset link sent to email"}, status=status.HTTP_200_OK)
+        return Response({"detail": "An email has been sent to reset your password."}, status=status.HTTP_200_OK)
 
 class PasswordResetConfirmView(APIView):
     """Handles password reset confirmation by validating the token from the reset link
@@ -112,7 +116,7 @@ class PasswordResetConfirmView(APIView):
 
             user.set_password(new_password)
             user.save()
-            return Response({"detail": "Password reset successfully!"}, status=status.HTTP_200_OK)
+            return Response({"detail": "Your Password has been successfully reset."}, status=status.HTTP_200_OK)
         else:
             return Response({"detail": "Invalid password reset link"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -123,6 +127,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
     """
 
     def post(self, request, *args, **kwargs):
+        request.data['username'] = request.data.get('email')
         try:
             response = super().post(request, *args, **kwargs)
         except:
@@ -153,11 +158,11 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         )
 
         User = get_user_model()
-        user = User.objects.get(username=request.data.get('username'))
+        user = User.objects.get(username=request.data.get('email'))
     
 
 
-        response.data = {"detail": "Login successfully!", "user": {"id": user.id, "username": user.username, "email": user.email   }}
+        response.data = {"detail": "Login successfully!", "user": {"id": user.id, "username": user.username}}
         return response
     
     
@@ -171,7 +176,7 @@ class CookieRefreshView(TokenRefreshView):
         refresh_token = request.COOKIES.get('refresh_token')
         #refresh token nicht im Cookie gefunden
         if refresh_token is None:
-            return Response({"detail": "Refresh token not provided"}, status=status.HTTP_401_UNAUTHORIZED)   
+            return Response({"detail": "Refresh token not provided"}, status=status.HTTP_400_BAD_REQUEST)   
         
         serializer =self.get_serializer(data={'refresh': refresh_token})
 
@@ -181,7 +186,7 @@ class CookieRefreshView(TokenRefreshView):
             return Response({"detail": "Invalid refresh token"}, status=status.HTTP_401_UNAUTHORIZED)
         
         access_token = serializer.validated_data.get('access')
-        response = Response({"detail": "Token refreshed"})
+        response = Response({"detail": "Token refreshed", "access": access_token})
         response.set_cookie(
             key='access_token',
             value=access_token,
@@ -192,13 +197,19 @@ class CookieRefreshView(TokenRefreshView):
         return response
     
 class CookieDeleteView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     """
     Handles the logout process by deleting the access and refresh token cookies.
     """
 
     def post(self, request, *args, **kwargs):
-        response = Response({"detail": "Log-Out successfully! All Tokens will be deleted. Refresh token is now invalid"})
+        refresh_token = request.COOKIES.get('refresh_token')
+        if not refresh_token:
+            return Response({"detail": "Refresh token fehlt."}, status=status.HTTP_400_BAD_REQUEST)
+        token = RefreshToken(refresh_token)
+        token.blacklist()
+
+        response = Response({"detail": "Logout successful! All tokens will be deleted. Refresh token is now invalid."})
         response.delete_cookie('access_token')
         response.delete_cookie('refresh_token')
         return response

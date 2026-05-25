@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'rest_framework_simplejwt',
+    'rest_framework_simplejwt.token_blacklist',
 ]
 
 MIDDLEWARE = [
@@ -114,8 +115,8 @@ RQ_QUEUES = {
         'HOST': 'redis',
         'PORT': 6379,
         'DB': 0,
-        'USERNAME': 'some-user',
-        'PASSWORD': 'some-password',
+        # 'USERNAME': 'some-user',
+        # 'PASSWORD': 'some-password',
         'DEFAULT_TIMEOUT': 360,
         'DEFAULT_RESULT_TTL': 800,
     }

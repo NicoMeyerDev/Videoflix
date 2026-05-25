@@ -153,7 +153,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             samesite='Lax'
         )
 
-        User = get_user_model()
+        
         user = User.objects.get(username=request.data.get('username'))
     
 

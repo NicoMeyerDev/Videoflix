@@ -1,6 +1,3 @@
-import queue
-import shutil
-
 from videoflix_app.tasks import convert_480p, convert_720p, convert_1080p
 from .models import Video
 from django.dispatch import receiver
@@ -17,7 +14,6 @@ def video_post_save(sender, instance, created, **kwargs):
     """
 
     if created:
-        print("Video wurde gespeichert)")
         queue = django_rq.get_queue('default', autocommit=True)
         queue.enqueue(convert_480p, instance.video_file.path, instance.id)
         queue.enqueue(convert_720p, instance.video_file.path, instance.id)
@@ -31,12 +27,12 @@ def video_post_delete(sender, instance, **kwargs):
     """
 
     if instance.video_file:
-    # Konvertierte Ordner löschen
+    
         for video_file in instance.files.all():
             if os.path.exists(video_file.hls_path):
                 shutil.rmtree(video_file.hls_path)
     
-    # Originaldatei löschen
+    
         if os.path.isfile(instance.video_file.path):
             os.remove(instance.video_file.path)
 

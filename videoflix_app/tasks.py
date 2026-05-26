@@ -4,9 +4,9 @@ from videoflix_app.models import Video, VideoFile
 
 def convert_480p(source, video_id):
     """
-    Konvertiert eine Videodatei in das HLS-Format mit 480p Auflösung.
-    Erstellt den Ausgabeordner, führt ffmpeg aus um HLS-Segmente zu erzeugen
-    und speichert den VideoFile Eintrag in der Datenbank.
+    Converts a video file to 480p HLS format.
+    Creates the output directory, runs ffmpeg to generate HLS segments,
+    and saves the VideoFile entry in the database.
     """
     file_name = os.path.splitext(source)[0]
     output_path = f"{file_name}/480p"

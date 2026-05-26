@@ -1,16 +1,13 @@
-from os import link
-
 from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
-
+from django.conf import settings
 
 from rest_framework import status
 from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
-
 
 from django.core.mail import send_mail
 from django.contrib.auth.tokens import default_token_generator
@@ -28,26 +25,22 @@ class RegistrationView(APIView):
     def post(self, request):
         serializer = RegistrationSerializer(data=request.data)
         
-        
-
-        data = {}
         if serializer.is_valid():
             saved_account = serializer.save()
 
             
             uid = urlsafe_base64_encode(force_bytes(saved_account.pk))
             token = default_token_generator.make_token(saved_account).replace('=', '')
-            link = f"http://localhost:4200/activate/{uid}/{token}/"
+            saved_account.is_active = False
+            saved_account.save()
+            link = f"{settings.FRONTEND_URL}/pages/auth/activate.html?uid={uid}&token={token}"
             send_mail(
                 subject='Account aktivieren',
                 message=f'Hier ist dein Aktivierungslink: {link}',
-                from_email='noreply@videoflix.com', #TODO: E-Mail-Adresse anpassen
+                from_email='noreply@videoflix.com', 
                 recipient_list=[saved_account.email]
 )
-            data = {
-                'email': saved_account.email,
-                'user_id': saved_account.pk
-            }
+            
             return Response({"user": {"id": saved_account.pk, "email": saved_account.email}, "token": token}, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -88,7 +81,7 @@ class PasswordResetRequestView(APIView):
 
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user).replace('=', '')
-        link = f"http://localhost:4200/reset-password-confirm/{uid}/{token}/"
+        link = f"{settings.FRONTEND_URL}/pages/auth/confirm_password.html?uid={uid}&token={token}"
         send_mail(
             subject='Passwort zurücksetzen',
             message=f'Hier ist dein Link zum Zurücksetzen des Passworts: {link}',
@@ -137,10 +130,7 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             )
         refresh = response.data.get('refresh')
         access = response.data.get('access')
-        
-
-       
-
+    
         response.set_cookie(
             key='access_token',
             value=access,
@@ -148,7 +138,6 @@ class CookieTokenObtainPairView(TokenObtainPairView):
             secure=True,
             samesite='Lax'
         )
-
         response.set_cookie(
             key='refresh_token',    
             value=refresh,
@@ -160,8 +149,6 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         User = get_user_model()
         user = User.objects.get(username=request.data.get('email'))
     
-
-
         response.data = {"detail": "Login successfully!", "user": {"id": user.id, "username": user.username}}
         return response
     
@@ -174,7 +161,7 @@ class CookieRefreshView(TokenRefreshView):
 
     def post(self, request, *args, **kwargs):
         refresh_token = request.COOKIES.get('refresh_token')
-        #refresh token nicht im Cookie gefunden
+        
         if refresh_token is None:
             return Response({"detail": "Refresh token not provided"}, status=status.HTTP_400_BAD_REQUEST)   
         

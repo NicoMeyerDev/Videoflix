@@ -1,5 +1,4 @@
 from django.urls import path
-from rest_framework_simplejwt.views import TokenRefreshView,TokenRefreshView
 from auth_app.api.views import  RegistrationView, CookieTokenObtainPairView, CookieRefreshView, CookieDeleteView, ActivateAccountView, PasswordResetRequestView, PasswordResetConfirmView   
 
 urlpatterns = [

@@ -1,3 +1,5 @@
+from os import link
+
 from django.contrib.auth.models import User
 from django.contrib.auth import get_user_model
 from django.conf import settings
@@ -14,6 +16,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 from django.utils.encoding import force_bytes, force_str
 
+from django.template.loader import render_to_string
 from .serializers import RegistrationSerializer
 
 
@@ -27,24 +30,27 @@ class RegistrationView(APIView):
         
         if serializer.is_valid():
             saved_account = serializer.save()
-
-            
             uid = urlsafe_base64_encode(force_bytes(saved_account.pk))
             token = default_token_generator.make_token(saved_account).replace('=', '')
             saved_account.is_active = False
             saved_account.save()
             link = f"{settings.FRONTEND_URL}/pages/auth/activate.html?uid={uid}&token={token}"
+            html_message = render_to_string('activation_email.html', {
+                'user_email': saved_account.email,
+                'link': link
+            })
             send_mail(
-                subject='Account aktivieren',
-                message=f'Hier ist dein Aktivierungslink: {link}',
-                from_email='noreply@videoflix.com', 
-                recipient_list=[saved_account.email]
-)
-            
+                subject='Confirm your email',
+                message=f'Activate your account: {link}',
+                from_email='noreply@videoflix.com',
+                recipient_list=[saved_account.email],
+                html_message=html_message
+            )
             return Response({"user": {"id": saved_account.pk, "email": saved_account.email}, "token": token}, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
+
 class ActivateAccountView(APIView):
     """Handles account activation by validating the token
     from the activation link and activating the user's account."""
@@ -82,11 +88,13 @@ class PasswordResetRequestView(APIView):
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user).replace('=', '')
         link = f"{settings.FRONTEND_URL}/pages/auth/confirm_password.html?uid={uid}&token={token}"
+        html_message = render_to_string('password_reset_email.html', {'link': link})
         send_mail(
-            subject='Passwort zurücksetzen',
-            message=f'Hier ist dein Link zum Zurücksetzen des Passworts: {link}',
+            subject='Reset your Password',
+            message=f'Reset your password: {link}',
             from_email='noreply@videoflix.com',
-            recipient_list=[user.email]
+            recipient_list=[user.email],
+            html_message=html_message
         )
         return Response({"detail": "An email has been sent to reset your password."}, status=status.HTTP_200_OK)
 

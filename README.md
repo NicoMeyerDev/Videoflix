@@ -16,7 +16,7 @@ Videoflix is a Netflix-style video streaming backend. Upload videos via the Djan
 ### 1. Clone the repository
 
 ```
-git clone (https://github.com/NicoMeyerDev/Videoflix)
+git clone https://github.com/NicoMeyerDev/Videoflix
 cd "Videoflix Backend"
 ```
 

@@ -52,10 +52,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
     "videoflix_app",
     "auth_app",
-
     "django_rq",
     "rest_framework",
     "corsheaders",

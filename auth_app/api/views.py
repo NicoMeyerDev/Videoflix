@@ -1,22 +1,26 @@
-from os import link
+from urllib import request
 
-from django.contrib.auth.models import User
-from django.contrib.auth import get_user_model
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.contrib.auth.models import User
+
+from django.contrib.auth.tokens import default_token_generator
+from django.core.mail import EmailMultiAlternatives
+
+from django.middleware.csrf import get_token
+from django.template.loader import render_to_string
+from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
 
 from rest_framework import status
-from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from django.core.mail import send_mail
-from django.contrib.auth.tokens import default_token_generator
-from django.utils.http import urlsafe_base64_decode, urlsafe_base64_encode
-from django.utils.encoding import force_bytes, force_str
-
-from django.template.loader import render_to_string
+from rest_framework_simplejwt.exceptions import (InvalidToken,TokenError)
+from rest_framework.exceptions import AuthenticationFailed
 from .serializers import RegistrationSerializer
 
 
@@ -30,22 +34,25 @@ class RegistrationView(APIView):
         
         if serializer.is_valid():
             saved_account = serializer.save()
-            uid = urlsafe_base64_encode(force_bytes(saved_account.pk))
-            token = default_token_generator.make_token(saved_account).replace('=', '')
             saved_account.is_active = False
             saved_account.save()
+
+            uid = urlsafe_base64_encode(force_bytes(saved_account.pk))
+            token = default_token_generator.make_token(saved_account).replace('=', '')
+            
             link = f"{settings.FRONTEND_URL}/pages/auth/activate.html?uid={uid}&token={token}"
-            html_message = render_to_string('activation_email.html', {
-                'user_email': saved_account.email,
-                'link': link
-            })
-            send_mail(
-                subject='Confirm your email',
-                message=f'Activate your account: {link}',
-                from_email='noreply@videoflix.com',
-                recipient_list=[saved_account.email],
-                html_message=html_message
+
+            text_content = f"Activate your account: {link}"
+            html_content = render_to_string('activation_email.html', {'user_email': saved_account.email,'link': link},
             )
+            msg = EmailMultiAlternatives(
+                subject='Confirm your Account',
+                body=text_content,
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[saved_account.email],
+            )
+            msg.attach_alternative(html_content, "text/html")
+            msg.send()
             return Response({"user": {"id": saved_account.pk, "email": saved_account.email}, "token": token}, status=status.HTTP_201_CREATED)
         else:
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -88,14 +95,17 @@ class PasswordResetRequestView(APIView):
         uid = urlsafe_base64_encode(force_bytes(user.pk))
         token = default_token_generator.make_token(user).replace('=', '')
         link = f"{settings.FRONTEND_URL}/pages/auth/confirm_password.html?uid={uid}&token={token}"
-        html_message = render_to_string('password_reset_email.html', {'link': link})
-        send_mail(
-            subject='Reset your Password',
-            message=f'Reset your password: {link}',
-            from_email='noreply@videoflix.com',
-            recipient_list=[user.email],
-            html_message=html_message
+
+        text_content = f"Reset your password: {link}"
+        html_content = render_to_string('password_reset_email.html', {'link': link})
+        msg = EmailMultiAlternatives(
+            subject='Password Reset Request',
+            body=text_content,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[user.email],
         )
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
         return Response({"detail": "An email has been sent to reset your password."}, status=status.HTTP_200_OK)
 
 class PasswordResetConfirmView(APIView):
@@ -128,17 +138,18 @@ class CookieTokenObtainPairView(TokenObtainPairView):
     """
 
     def post(self, request, *args, **kwargs):
-        request.data['username'] = request.data.get('email')
+        request.data["username"] = request.data.get("email")
+
         try:
             response = super().post(request, *args, **kwargs)
-        except:
+        except (AuthenticationFailed, InvalidToken, TokenError):
             return Response(
                 {"detail": "Ungültige Anmeldedaten."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_401_UNAUTHORIZED
             )
-        refresh = response.data.get('refresh')
-        access = response.data.get('access')
-    
+        
+        refresh = response.data.get("refresh")
+        access = response.data.get("access")
         response.set_cookie(
             key='access_token',
             value=access,
@@ -158,6 +169,15 @@ class CookieTokenObtainPairView(TokenObtainPairView):
         user = User.objects.get(username=request.data.get('email'))
     
         response.data = {"detail": "Login successfully!", "user": {"id": user.id, "username": user.username}}
+        csrf_token = get_token(request)
+
+        response.set_cookie(
+            key="csrftoken",
+            value=csrf_token,
+            httponly=False,
+            secure=True,
+            samesite="Lax"
+        )
         return response
     
     

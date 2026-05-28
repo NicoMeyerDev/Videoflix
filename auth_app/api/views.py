@@ -138,6 +138,14 @@ class CookieTokenObtainPairView(TokenObtainPairView):
     """
 
     def post(self, request, *args, **kwargs):
+        """
+        Overrides the default TokenObtainPairView post method.
+        Accepts email instead of username for authentication.
+        On success, stores access and refresh tokens as HttpOnly cookies
+        and sets the CSRF token as a non-HttpOnly cookie for frontend use.
+        Returns user data without exposing the tokens in the response body.
+        """
+
         request.data["username"] = request.data.get("email")
 
         try:

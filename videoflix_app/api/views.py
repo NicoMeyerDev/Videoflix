@@ -9,6 +9,10 @@ class VideoView(viewsets.ReadOnlyModelViewSet):
     serializer_class = VideoSerializer
 
     def get_queryset(self):
+        """
+        Returns all videos. If a 'search' query parameter is provided,
+        filters videos by title using a case-insensitive contains lookup.
+        """
         queryset = super().get_queryset()
         search_query = self.request.query_params.get('search', None)
         if search_query:
